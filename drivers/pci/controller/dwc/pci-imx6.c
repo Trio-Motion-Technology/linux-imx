@@ -3069,7 +3069,11 @@ static struct platform_driver imx6_pcie_driver = {
 		.of_match_table = imx6_pcie_of_match,
 		.suppress_bind_attrs = true,
 		.pm = &imx6_pcie_pm_ops,
-		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
+#ifdef CONFIG_TRIO_FLEX7_MIDI
+		.probe_type = PROBE_FORCE_SYNCHRONOUS,
+#else
+      .probe_type = PROBE_PREFER_ASYNCHRONOUS,
+#endif
 	},
 	.probe    = imx6_pcie_probe,
 	.shutdown = imx6_pcie_shutdown,

@@ -704,6 +704,74 @@ static int ksz9131_of_load_skew_values(struct phy_device *phydev,
 	return phy_write_mmd(phydev, 2, reg, newval);
 }
 
+#ifdef CONFIG_TRIO_FLEX7_MIDI
+/* MMD Address 0x2 */
+#define MDIO_MDD2 2
+#define KSZ9131RN_RXC_DLL_CTRL		76
+#define KSZ9131RN_TXC_DLL_CTRL		77
+#define KSZ9131RN_DLL_CTRL_BYPASS	BIT_MASK(12)
+#define KSZ9131RN_DLL_ENABLE_DELAY	0
+#define KSZ9131RN_DLL_DISABLE_DELAY	BIT(12)
+/* MDD Address 0x7 */
+#define MDIO_MDD7 7
+#define KSZ9131RN_EEE_ADVERTISEMENT 60
+#define KSZ9131RN_EEE_1000_BASET 0x04
+#define KSZ9131RN_EEE_100_BASET 0x02
+
+#define KSZ9131RN_LED_MODE_SELECT_REG 22
+#define KSZ9131RN_LED_MODE_SELECT_MODE0_MODE0 0
+#define KSZ9131RN_LED_BEHAVIOUR_REG 23
+#define KSZ9131RN_LED1LINKACT_LED2LINK_5HZ 0x8402
+#define KSZ9131RN_LED_MODE_REG 26
+#define KSZ9131RN_LED_MODE_EXTENDED 0
+
+
+
+static int ksz9131_config_rgmii_delay(struct phy_device *phydev)
+{
+	int ret;
+	u16 rxcdll_val, txcdll_val;
+
+	switch (phydev->interface) {
+	case PHY_INTERFACE_MODE_RGMII:
+		rxcdll_val = KSZ9131RN_DLL_DISABLE_DELAY;
+		txcdll_val = KSZ9131RN_DLL_DISABLE_DELAY;
+		break;
+	case PHY_INTERFACE_MODE_RGMII_ID:
+		rxcdll_val = KSZ9131RN_DLL_ENABLE_DELAY;
+		txcdll_val = KSZ9131RN_DLL_ENABLE_DELAY;
+		break;
+	case PHY_INTERFACE_MODE_RGMII_RXID:
+		rxcdll_val = KSZ9131RN_DLL_ENABLE_DELAY;
+		txcdll_val = KSZ9131RN_DLL_DISABLE_DELAY;
+		break;
+	case PHY_INTERFACE_MODE_RGMII_TXID:
+		rxcdll_val = KSZ9131RN_DLL_DISABLE_DELAY;
+		txcdll_val = KSZ9131RN_DLL_ENABLE_DELAY;
+		break;
+	default:
+		return 0;
+	}
+
+	ret = phy_modify_mmd_changed(phydev, MDIO_MDD2, KSZ9131RN_RXC_DLL_CTRL,
+				     KSZ9131RN_DLL_CTRL_BYPASS, rxcdll_val);
+   if (ret < 0)
+		return ret;
+
+	ret = phy_modify_mmd_changed(phydev, MDIO_MDD2, KSZ9131RN_TXC_DLL_CTRL,
+				     KSZ9131RN_DLL_CTRL_BYPASS, txcdll_val);
+   if (ret < 0)
+      return ret;
+
+	if (phy_modify_mmd_changed(phydev, MDIO_MDD7, KSZ9131RN_EEE_ADVERTISEMENT,
+				     KSZ9131RN_EEE_1000_BASET | KSZ9131RN_EEE_100_BASET, 0) > 0 )
+   {
+      phy_restart_aneg(phydev);
+   }
+   return ret;
+}
+#endif // CONFIG_TRIO_FLEX7_MIDI
+
 static int ksz9131_config_init(struct phy_device *phydev)
 {
 	const struct device *dev = &phydev->mdio.dev;
@@ -730,6 +798,11 @@ static int ksz9131_config_init(struct phy_device *phydev)
 	if (!of_node)
 		return 0;
 
+#ifdef CONFIG_TRIO_FLEX7_MIDI
+	if (phy_interface_is_rgmii(phydev))
+		ksz9131_config_rgmii_delay(phydev);
+#endif // CONFIG_TRIO_FLEX7_MIDI
+
 	ret = ksz9131_of_load_skew_values(phydev, of_node,
 					  MII_KSZ9031RN_CLK_PAD_SKEW, 5,
 					  clk_skews, 2);
@@ -753,6 +826,20 @@ static int ksz9131_config_init(struct phy_device *phydev)
 					  tx_data_skews, 4);
 	if (ret < 0)
 		return ret;
+
+#ifdef CONFIG_TRIO_FLEX7_MIDI
+   ret = phy_write(phydev, KSZ9131RN_LED_MODE_SELECT_REG, KSZ9131RN_LED_MODE_SELECT_MODE0_MODE0);
+	if (ret < 0)
+		return ret;
+
+   ret = phy_write(phydev, KSZ9131RN_LED_BEHAVIOUR_REG, KSZ9131RN_LED1LINKACT_LED2LINK_5HZ);
+	if (ret < 0)
+		return ret;
+
+   ret = phy_write(phydev, KSZ9131RN_LED_MODE_REG, KSZ9131RN_LED_MODE_EXTENDED);
+	if (ret < 0)
+		return ret;
+#endif
 
 	return 0;
 }
@@ -915,6 +1002,7 @@ static int kszphy_resume(struct phy_device *phydev)
 
 	return 0;
 }
+
 
 static int kszphy_probe(struct phy_device *phydev)
 {

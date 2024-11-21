@@ -10,6 +10,7 @@
 
 #include <linux/bcd.h>
 #include <linux/bitops.h>
+#include <linux/delay.h>
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
@@ -73,8 +74,13 @@
 
 #define RV3028_BACKUP_TCE		BIT(5)
 #define RV3028_BACKUP_TCR_MASK		GENMASK(1,0)
+#define RV3028_BACKUP_BSM_MASK   GENMASK(3,2)
+#define RV3028_BACKUP_BSM_DSM    BIT(2)
 
 #define OFFSET_STEP_PPT			953674
+
+#define WORKAROUND_SLEEP_MIN_US 2000
+#define WORKAROUND_SLEEP_MAX_US 4000
 
 enum rv3028_type {
 	rv_3028,
@@ -223,6 +229,7 @@ static int rv3028_get_time(struct device *dev, struct rtc_time *tm)
 		dev_warn(dev, "Voltage low, data is invalid.\n");
 		return -EINVAL;
 	}
+	usleep_range(WORKAROUND_SLEEP_MIN_US, WORKAROUND_SLEEP_MAX_US);
 
 	ret = regmap_bulk_read(rv3028->regmap, RV3028_SEC, date, sizeof(date));
 	if (ret)
@@ -600,6 +607,7 @@ static int rv3028_probe(struct i2c_client *client)
 	struct rv3028_data *rv3028;
 	int ret, status;
 	u32 ohms;
+   u32 battery_backed;
 	struct nvmem_config nvmem_cfg = {
 		.name = "rv3028_nvram",
 		.word_size = 1,
@@ -657,11 +665,18 @@ static int rv3028_probe(struct i2c_client *client)
 		}
 	}
 
-	ret = regmap_update_bits(rv3028->regmap, RV3028_CTRL1,
-				 RV3028_CTRL1_WADA, RV3028_CTRL1_WADA);
-	if (ret)
-		return ret;
+   ret = regmap_update_bits(rv3028->regmap, RV3028_CTRL1,
+      RV3028_CTRL1_WADA, RV3028_CTRL1_WADA);
 
+   if (device_property_read_u32(&client->dev, "battery-backed", &battery_backed))
+   	battery_backed= 0;
+
+   if (battery_backed)
+   {
+      ret = regmap_write(rv3028->regmap, RV3028_CLKOUT, 0);  /* no ouputs */
+	   if (ret)
+		   return ret;
+   }
 	/* setup timestamping */
 	ret = regmap_update_bits(rv3028->regmap, RV3028_CTRL2,
 				 RV3028_CTRL2_EIE | RV3028_CTRL2_TSE,
@@ -679,10 +694,21 @@ static int rv3028_probe(struct i2c_client *client)
 				break;
 
 		if (i < ARRAY_SIZE(rv3028_trickle_resistors)) {
-			ret = regmap_update_bits(rv3028->regmap, RV3028_BACKUP,
-						 RV3028_BACKUP_TCE |
-						 RV3028_BACKUP_TCR_MASK,
-						 RV3028_BACKUP_TCE | i);
+         if (battery_backed)
+         {
+            ret = regmap_update_bits(rv3028->regmap, RV3028_BACKUP,
+                     RV3028_BACKUP_TCE |
+                     RV3028_BACKUP_TCR_MASK | 
+                     RV3028_BACKUP_BSM_MASK,
+                     RV3028_BACKUP_TCE | i | RV3028_BACKUP_BSM_DSM);  /* trickle charge ON, ohms setting and enable direct switchover */ 
+         }
+         else
+         {
+            ret = regmap_update_bits(rv3028->regmap, RV3028_BACKUP,
+                     RV3028_BACKUP_TCE |
+                     RV3028_BACKUP_TCR_MASK,
+                     RV3028_BACKUP_TCE | i );
+         }
 			if (ret)
 				return ret;
 		} else {

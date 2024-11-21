@@ -72,6 +72,97 @@ static const void *of_get_mac_addr_nvmem(struct device_node *np)
 	return mac;
 }
 
+
+#ifdef CONFIG_PLAT_TRIOMOTION
+#ifdef CONFIG_TRIO_FLEX7_MIDI
+#define NUM_TRIO_MACS 2
+#define BASE_MAC_ADDRESS 0x001EFBF80001
+#endif
+#endif
+
+#ifdef NUM_TRIO_MACS
+
+u64 trio_generate_mac(int idx)
+{
+  	struct device_node *root;
+   const char *pserial=NULL;
+   long long serial_num = 0;
+   u64 trio_mac = BASE_MAC_ADDRESS + idx; 
+   
+	root = of_find_node_by_path("/");
+	if (root) {
+		of_property_read_string(root, "serial-number",
+					      &pserial);
+      if (pserial!=NULL)
+      {
+         int ret= kstrtoll(pserial,0,&serial_num);
+         if ((ret<0) || (serial_num<1) || (serial_num >= 229375))
+         {
+            serial_num =0;
+            printk(KERN_ERR "Trio serial number out of range\n");
+         }
+         trio_mac= BASE_MAC_ADDRESS + (serial_num * NUM_TRIO_MACS) + idx ;
+         printk(KERN_INFO "Trio generated MAC %d %012llX\n",idx,trio_mac);
+      }
+   }
+   return trio_mac;
+}
+
+u64 return_trio_mac(int idx)
+{
+   return trio_generate_mac(idx);
+}
+
+u64 return_trio_mac_reversed(int idx) /* reverses byte order in bottom 6 bytes */
+{   
+   u64 forward= return_trio_mac(idx);
+   u64 reversed;
+   reversed  = (forward >> 40) & 0x00000000000000FF;
+   reversed |= (forward >> 24) & 0x000000000000FF00;
+   reversed |= (forward >> 8)  & 0x0000000000FF0000;
+   reversed |= (forward << 8)  & 0x00000000FF000000;
+   reversed |= (forward << 24) & 0x000000FF00000000;
+   reversed |= (forward << 40) & 0x0000FF0000000000;
+   return reversed;
+}
+
+EXPORT_SYMBOL(return_trio_mac);
+EXPORT_SYMBOL(return_trio_mac_reversed);
+
+
+
+static const void *of_get_trio_mac_addr(struct device_node *np)
+{
+   u32 idx;
+   int ret;
+   const void *mac;
+	u8 trio_mac[ETH_ALEN];
+   struct platform_device *pdev = of_find_device_by_node(np);
+   
+   if (!pdev)
+   	return ERR_PTR(-ENODEV);
+   
+   ret = of_property_read_u32(np, "trio-mac-idx", &idx);
+   if (ret >= 0)
+   {
+      u64 val= return_trio_mac(idx);
+      trio_mac[0]= (val >> 40) & 0xff;
+      trio_mac[1]= (val >> 32) & 0xff;
+      trio_mac[2]= (val >> 24) & 0xff;
+      trio_mac[3]= (val >> 16) & 0xff;
+      trio_mac[4]= (val >> 8)  & 0xff;
+      trio_mac[5]= (val)       & 0xff;
+      mac = devm_kmemdup(&pdev->dev, trio_mac, ETH_ALEN, GFP_KERNEL);
+      put_device(&pdev->dev);
+      if (!mac)
+         return ERR_PTR(-ENOMEM);
+
+      return mac;
+   }
+	return NULL;
+}
+#endif // NUM_TRIO_MACS
+
 /**
  * Search the device tree for the best MAC address to use.  'mac-address' is
  * checked first, because that is supposed to contain to "most recent" MAC
@@ -101,6 +192,12 @@ const void *of_get_mac_address(struct device_node *np)
 	addr = of_get_mac_addr(np, "mac-address");
 	if (addr)
 		return addr;
+
+#ifdef NUM_TRIO_MACS
+	addr = of_get_trio_mac_addr(np);
+	if (addr)
+		return addr;
+#endif
 
 	addr = of_get_mac_addr(np, "local-mac-address");
 	if (addr)

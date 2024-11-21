@@ -130,7 +130,17 @@ static int lan743x_csr_init(struct lan743x_adapter *adapter)
 	}
 
 	result = lan743x_csr_light_reset(adapter);
-	if (result)
+	
+#ifdef CONFIG_TRIO_FLEX7_MIDI
+   {
+#define HW_PHY_LED_MODE 0x18
+      u32 myval=lan743x_csr_read(adapter, HW_CFG);
+      lan743x_csr_write(adapter, HW_CFG, myval | 0x300000); /* enable LEDs 0 and 1 */
+      lan743x_csr_write(adapter, HW_PHY_LED_MODE, 0xe680);
+   }
+#endif
+
+   if (result)
 		goto clean_up;
 	return 0;
 clean_up:
@@ -788,6 +798,10 @@ static void lan743x_mac_set_address(struct lan743x_adapter *adapter,
 		   "MAC address set to %pM\n", addr);
 }
 
+#ifdef CONFIG_TRIO_FLEX7_MIDI
+extern u64 return_trio_mac_reversed(int idx);
+#endif
+
 static int lan743x_mac_init(struct lan743x_adapter *adapter)
 {
 	bool mac_address_valid = true;
@@ -804,8 +818,16 @@ static int lan743x_mac_init(struct lan743x_adapter *adapter)
 	data |= MAC_CR_CNTR_RST_;
 	lan743x_csr_write(adapter, MAC_CR, data);
 
+#ifdef CONFIG_TRIO_FLEX7_MIDI
+   {
+      u64 trio_mac=return_trio_mac_reversed(0); 
+      mac_addr_hi = (trio_mac >> 32) & 0x0000FFFF;
+      mac_addr_lo = trio_mac & 0xFFFFFFFF;
+   }
+#else
 	mac_addr_hi = lan743x_csr_read(adapter, MAC_RX_ADDRH);
 	mac_addr_lo = lan743x_csr_read(adapter, MAC_RX_ADDRL);
+#endif
 	adapter->mac_address[0] = mac_addr_lo & 0xFF;
 	adapter->mac_address[1] = (mac_addr_lo >> 8) & 0xFF;
 	adapter->mac_address[2] = (mac_addr_lo >> 16) & 0xFF;

@@ -318,4 +318,16 @@ config ARCH_ZYNQMP
 	help
 	  This enables support for Xilinx ZynqMP Family
 
+config PLAT_TRIOMOTION
+   bool "Trio Motion Technology Ltd."
+   help
+      This enables support for Trio Motion Technology products 
+
+if PLAT_TRIOMOTION
+menu "Trio Motion product selection"
+	config TRIO_FLEX7_MIDI
+		bool "P770 Flex7 Midi"
+endmenu
+endif
+
 endmenu
