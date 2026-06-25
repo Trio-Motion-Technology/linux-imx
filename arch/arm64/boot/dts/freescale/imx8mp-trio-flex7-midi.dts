@@ -200,7 +200,7 @@
 	phy-mode = "rgmii-id";
 	phy-handle = <&ethphy0>;
    trio-mac-idx = <1>; 
-	status = "okay";
+	status = "disabled";
 
 	mdio {
 		compatible = "snps,dwmac-mdio";  
