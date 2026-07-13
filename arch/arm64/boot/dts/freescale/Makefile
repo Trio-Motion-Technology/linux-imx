@@ -61,7 +61,9 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mn-evk.dtb imx8mn-evk-rm67191.dtb imx8mn-ddr4-evk.
 			  imx8mn-evk-ak5558.dtb imx8mn-evk-rpmsg.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mn-ddr4-evk-root.dtb imx8mn-ddr4-evk-inmate.dtb imx8mn-evk-root.dtb imx8mn-evk-inmate.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mn-ab2.dtb imx8mn-ddr4-ab2.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk.dtb imx8mp-trio.dtb imx8mp-evk-root.dtb imx8mp-trio-flex7-midi-lvls.dtb imx8mp-trio-flex7-midi.dtb imx8mp-evk-inmate.dtb imx8mp-evk-rpmsg.dtb \
+dtb-$(CONFIG_ARCH_MXC) += imx8mp-evk.dtb imx8mp-trio.dtb imx8mp-evk-root.dtb imx8mp-trio-flex7-midi-lvls.dtb \
+                          imx8mp-trio-flex7-midi-lvls-2-ethercat.dtb imx8mp-trio-flex7-midi-lvls-2-ethernet.dtb \
+                          imx8mp-trio-flex7-midi.dtb imx8mp-evk-inmate.dtb imx8mp-evk-rpmsg.dtb \
 			  imx8mp-evk-rm67191.dtb imx8mp-evk-flexcan2.dtb imx8mp-evk-it6263-lvds-dual-channel.dtb \
 			  imx8mp-evk-jdi-wuxga-lvds-panel.dtb imx8mp-ab2.dtb imx8mp-evk-sof-wm8960.dtb \
 			  imx8mp-evk-dsp.dtb imx8mp-evk-ov2775.dtb imx8mp-evk-basler.dtb
